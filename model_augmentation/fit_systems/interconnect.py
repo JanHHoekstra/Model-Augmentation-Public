@@ -32,6 +32,9 @@ class Interconnect(nn.Module):
         self.save_signals = False
 
     def init_model(self, sys_data):
+        # x, u = make_tensors_from_sys_data(sys_data)
+        # return
+
         for block in self.connected_blocks:
             block.init_block(torch.empty((0)))
 
@@ -226,7 +229,7 @@ class Interconnect(nn.Module):
                 input_signal_ixs.append(signal_connection.input_signal_ix)
 
         # determine connection matrices for add_to based connection method
-        for signal_connection in additive_signal_connections:
+        for signal_connection in add_to_signal_connections:
             raise NotImplementedError
 
         # check whether all connection matrices have the correct dimensions
@@ -273,9 +276,11 @@ class Interconnect(nn.Module):
                                     + " with type: " + connection_function_method)
 
     def connect_block_signals(self, block, input_signal_list: list, output_signal_list: list):
+        # if not isinstance(input_signal_list, list): input_signal_list = (input_signal_list)
         for input_signal in input_signal_list:
             self.connect_signals(input_signal, block)
 
+        # if not isinstance(output_signal_list, list): output_signal_list = (output_signal_list)
         for output_signal in output_signal_list:
             self.connect_signals(block, output_signal)
 
@@ -348,18 +353,34 @@ class Signal_Connection():
     def __repr__(self):
         return str(self)
     
+class modified_encoder_net(nn.Module):
+    def __init__(self, nb, nu, na, ny, nx, n_nodes_per_layer=64, n_hidden_layers=2, activation=nn.Tanh):
+        super(modified_encoder_net, self).__init__()
+        from deepSI.utils import simple_res_net
+        self.nu = tuple() if nu is None else ((nu,) if isinstance(nu,int) else nu)
+        self.ny = tuple()# if ny is None else ((ny,) if isinstance(ny,int) else ny)
+        self.net = simple_res_net(n_in=nb*np.prod(self.nu,dtype=int) + na*np.prod(self.ny,dtype=int), \
+            n_out=nx, n_nodes_per_layer=n_nodes_per_layer, n_hidden_layers=n_hidden_layers, activation=activation)
+
+    def forward(self, upast, ypast):
+        # ypast = ypast[:,:,1]
+
+        net_in = torch.cat([upast.view(upast.shape[0],-1),ypast.view(ypast.shape[0],-1)],axis=1)
+        return self.net(net_in)
+
 class SSE_Interconnect(SS_encoder_general):
     def __init__(self, na=5, nb=5, \
-                 interconnect=Interconnect, e_net=default_encoder_net,   e_net_kwargs={}, na_right=0, nb_right=0):
+                 interconnect=Interconnect, e_net=modified_encoder_net,   e_net_kwargs={}, na_right=0, nb_right=0):
 
         super(SSE_Interconnect, self).__init__(nx=interconnect.nx, nb=nb, na=na, na_right=na_right, nb_right=nb_right)
         
         self.e_net = e_net
         self.e_net_kwargs = e_net_kwargs
-        
         self.hfn = interconnect
+        # hf_net_kwargs['feedthrough'] = feedthrough
+        # self.hf_net_kwargs = hf_net_kwargs
 
-    def init_nets(self, nu, ny):
+    def init_nets(self, nu, ny): # a bit weird
         na_right = self.na_right if hasattr(self,'na_right') else 0
         nb_right = self.nb_right if hasattr(self,'nb_right') else 0
         self.encoder = self.e_net(nb=self.nb+nb_right, nu=nu, na=self.na+na_right, ny=ny, nx=self.nx,**self.e_net_kwargs)
@@ -373,9 +394,14 @@ class SSE_Interconnect(SS_encoder_general):
             self.nu, self.ny = sys_data.nu, sys_data.ny
             if auto_fit_norm:
                 self.norm.fit(sys_data)
-                # overwrite normalization above with values below
-                self.norm.u0 = 0
-                self.norm.y0 = 0
+                # self.norm.ustd = 0.9995115994824683
+                # self.norm.ystd = 2.165135419802158
+                # self.norm.ystd  = np.array([2.165135419802158, 2.165135419802158])
+                # self.norm.u0 = 2.8
+                # self.norm.y0 = 5.582729231040664
+                # self.norm.y0 = np.array([5.582729231040664, 5.582729231040664])
+                
+                
         self.init_nets(self.nu, self.ny)
         self.to_device(device=device)
         parameters_and_optim = [{**item,**parameters_optimizer_kwargs.get(name,{})} for name,item in self.parameters_with_names.items()]
@@ -393,10 +419,25 @@ class SSE_Interconnect(SS_encoder_general):
         for y, u in zip(torch.transpose(yfuture,0,1), torch.transpose(ufuture,0,1)): #iterate over time
             yhat, x = self.hfn(x, u)
             errors.append(nn.functional.mse_loss(y, yhat)) #calculate error after taking n-steps
-        return torch.mean(torch.stack(errors))
+        loss_MSE = torch.mean(torch.stack(errors))
+        
+        for m in self.hfn.connected_blocks:
+            # if isinstance(m, Parameterized_Linear_State_Block):
+            #     loss_theta = nn.functional.mse_loss(m.Lambda_A * m.A, m.Lambda_A * m.A_init, reduction="sum") \
+            #     + nn.functional.mse_loss(m.Lambda_B * m.B, m.Lambda_B * m.B_init, reduction="sum")
+            #     # print(loss_theta)
+            #     return loss_MSE + loss_theta
+            if isinstance(m, Parameterized_MSD_State_Block):
+                loss_theta = nn.functional.mse_loss(m.Lambda * m.params, m.Lambda * m.init_params, reduction="sum")
+                # print(loss_theta)
+                return loss_MSE + loss_theta
+
+        
+        return loss_MSE
     
     def measure_act_multi(self,actions):
         actions = torch.tensor(np.array(actions), dtype=torch.float32) #(N,...)
         with torch.no_grad():
             y_predict, self.state = self.hfn(self.state, actions)
         return y_predict.numpy()
+

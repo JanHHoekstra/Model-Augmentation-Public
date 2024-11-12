@@ -30,6 +30,61 @@ def detect_algebraic_loop(A: np.ndarray):
             return True
     
     return False
+
+def plot_fft_freq(signal: np.ndarray, dt):
+    # fig = plt.figure()
+    fft_wave = np.fft.fft(signal)
+
+    # Compute the Discrete Fourier Transform sample frequencies.
+
+    fft_fre = np.fft.fftfreq(n=signal.size, d=dt)
+
+    Nplot = signal.size//2
+    # plt.subplot(211)
+    plt.plot(fft_fre[:Nplot]*2*np.pi, 20*np.log10(np.absolute(fft_wave))[:Nplot])
+    # plt.plot(fft_fre[:Nplot]*2*np.pi, np.convolve(20*np.log10(np.absolute(fft_wave)), np.ones(3,)/3,mode='same')[:Nplot], label="Magnitude")
+    plt.legend(loc=1)
+    plt.title("FFT in Frequency Domain")
+
+    # plt.subplot(212)
+    # plt.plot(fft_fre, np.angle(fft_wave),label="Angle")
+    # plt.legend(loc=1)
+    plt.xlabel("frequency (rad/s)")
+
+    # plt.show()
+
+def plot_sys_data(sys_data: system_data):
+    nu, ny, nx = get_sys_data_dimensions(sys_data)
+
+    n_plots = nu + ny + nx
+    plot_nr = 1
+
+    fig = plt.figure()
+
+    u = sys_data.u.reshape((-1,nu))
+    for i in range(nu):
+        plt.subplot(n_plots, 1, plot_nr)
+        plt.plot(u[:,i])
+        plt.ylabel("input " + str(i+1))
+        plot_nr += 1
+
+    y = sys_data.y.reshape((-1,ny))
+    for i in range(ny):
+        plt.subplot(n_plots, 1, plot_nr)
+        plt.plot(y[:,i])
+        plt.ylabel("output " + str(i+1))
+        plot_nr += 1
+
+    if isinstance(sys_data.x, np.ndarray):
+        x = sys_data.x.reshape((-1,nx))
+        for i in range(nx):
+            plt.subplot(n_plots, 1, plot_nr)
+            plt.plot(x[:,i])
+            plt.ylabel("state " + str(i+1))
+            plot_nr += 1
+
+    plt.xlabel("time step k")
+    plt.show()
     
 def get_sys_data_dimensions(sys_data: system_data):
     nu = determine_sys_data_signal_dimension(sys_data.u)
@@ -80,6 +135,16 @@ def normalize_linear_ss_matrices(A_bla, B_bla, C_bla, D_bla, sys_data: system_da
     
     return A_bar_bla, B_bar_bla, C_bar_bla, D_bar_bla
 
+def determine_yes_no_query_binary_output(question_string):
+    while True:
+        answer = input(question_string)
+        if answer in ["y", "Y", "yes", "Yes"]:
+            return True
+        elif answer in ["n", "N", "no", "No"]:
+            return False
+        else:
+            print("Please answer with y or n.")
+        
 def expansion_matrix(ix, n):
     S = np.zeros((n, len(ix)))
     S[ix, np.arange(len(ix)), ] = 1

@@ -36,7 +36,7 @@ periods_test = 1; Ntest = 10000; Ntest_total = Ntest*(periods_test)
 
 utrain = deepSI.deepSI.exp_design.multisine(Ntrain, (periods_train+1), pmax=pmax, n_crest_factor_optim=1)*amp_scale
 uval = deepSI.deepSI.exp_design.multisine(Nval, (periods_val+1), pmax=pmax, n_crest_factor_optim=1)*amp_scale
-utest = deepSI.deepSI.exp_design.multisine(Ntest, (periods_test+1), pmax=pmax, n_crest_factor_optim=1)*amp_scale
+utest = 1.5*deepSI.deepSI.exp_design.multisine(Ntest, (periods_test+1), pmax=pmax, n_crest_factor_optim=1)*amp_scale
 
 Ttrain = np.arange(Ntrain_total)*dt
 Tval = np.arange(Nval_total)*dt
@@ -93,6 +93,16 @@ plt.show()
 
 ## ------------- Save data -----------------
 data_file_path = "data\\mass_spring_damper"
-train.save(os.path.join(os.getcwd(), data_file_path, "msd_3dof_multisine_train.npz"))
-val.save(os.path.join(os.getcwd(), data_file_path, "msd_3dof_multisine_val.npz"))
-test.save(os.path.join(os.getcwd(), data_file_path, "msd_3dof_multisine_test.npz"))
+# train.save(os.path.join(os.getcwd(), data_file_path, "msd_3dof_multisine_train.npz"))
+# val.save(os.path.join(os.getcwd(), data_file_path, "msd_3dof_multisine_val.npz"))
+test.save(os.path.join(os.getcwd(), data_file_path, "msd_3dof_multisine_extrapolate.npz"))
+
+# if determine_yes_no_query_binary_output("Should this data be saved? [y/n] "):
+#     data_file_name = "msd_{0}dof_multisine_N{1}_amp{2}.npz".format(n, N, 2*amp)
+#     data_file_path = os.path.join(os.getcwd(), "data\\mass_spring_damper", data_file_name)
+#     data.save(data_file_path)
+
+#     savemat(os.path.join(os.getcwd(), "data\\mass_spring_damper", "msd_u_amp10.mat"), {'u10': data.u})
+#     savemat(os.path.join(os.getcwd(), "data\\mass_spring_damper", "msd_y_amp10.mat"), {'y10':data.y})
+# else:
+#     print("Data was not saved.")

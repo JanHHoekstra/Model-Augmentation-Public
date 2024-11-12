@@ -22,24 +22,37 @@ dof = 3; nxd = 2*dof
 
 data_file_path = "data/mass_spring_damper"
 test_data = deepSI.load_system_data(os.path.join(os.getcwd(), data_file_path, "msd_3dof_multisine_test.npz"))
+# test_data = deepSI.load_system_data(os.path.join(os.getcwd(), data_file_path, "msd_3dof_multisine_extrapolate.npz"))
 
 ## ------------- Add noise -----------------
-sigma_n = 15e-5
+sigma_n = 52e-4
 test_data.y = test_data.y + np.random.normal(0, sigma_n, test_data.y.shape)
 
 ## ------------- Load fit system -----------------
-interconnect_mixed_file_path = os.path.join(os.getcwd(), "models\\cdc_paper\\msd_3dof_mixed_interconnection_e5000_nf200_batch_size2000")
-interconnect_1 : SSE_Interconnect = deepSI.load_system(interconnect_mixed_file_path)
+fit_sys_file_name_list = ["msd_3dof_ANN_SS_e5000_nf200_batch_size2000",
+                          "msd_3dof_static_series_resnet_e5000_nf200_batch_size2000",
+                          "msd_3dof_static_series_resnet_non_ideal_e5000_nf200_batch_size2000"]
 
-interconnect_series_file_path = os.path.join(os.getcwd(), "models\\cdc_paper\\msd_3dof_series_interconnection_e5000_nf200_batch_size2000")
-interconnect_2 : SSE_Interconnect = deepSI.load_system(interconnect_series_file_path)
+fit_sys_list = []
+fit_sys_name_list = []
+for fit_sys_file_name in fit_sys_file_name_list:
+    fit_sys_file_path = os.path.join(os.getcwd(), "models", "grid_search", fit_sys_file_name)
+    fit_sys_list.append(deepSI.load_system(fit_sys_file_path))
+    fit_sys_name_list.append(fit_sys_file_name.split("_e", 1)[0].split("dof_", 1)[1])
 
-interconnect_parallel_file_path = os.path.join(os.getcwd(), "models\\cdc_paper\\msd_3dof_parallel_interconnection_e5000_nf200_batch_size2000")
-interconnect_3 : SSE_Interconnect = deepSI.load_system(interconnect_parallel_file_path)
 
-# add loading of parameter matrices from matlab
+for fit_sys in fit_sys_list:
+    for m in fit_sys_list[0].hfn.connected_blocks:
+        if isinstance(m, Parameterized_MSD_State_Block):
+            print(m.params)
+            print(m.init_params)
+            break
+
+## ------------- Load 2dof -----------------
 FP_dof = 2
-data_file_path = os.path.join(os.getcwd(), "data\\mass_spring_damper\msd_{0}dof.mat".format(FP_dof))
+# data_file_path = os.path.join(os.getcwd(), "data", "mass_spring_damper", "msd_{0}dof.mat".format(FP_dof))
+data_file_path = os.path.join(os.getcwd(), "data", "mass_spring_damper", "msd_{0}dof_non_ideal.mat".format(FP_dof))
+
 mat_contents = loadmat(data_file_path, squeeze_me=False)
 
 nx = mat_contents['nx'][0,0]; ny = mat_contents['ny'][0,0]; nu = mat_contents['nu'][0,0]
@@ -67,34 +80,67 @@ for i in range(N):
 
 test_2dof = deepSI.System_data(u=ulog, y=ylog)
 
-## ------------- Plot prediction error -----------------
-test_int1 = interconnect_1.apply_experiment(test_data)
-test_int2 = interconnect_2.apply_experiment(test_data)
-test_int3 = interconnect_3.apply_experiment(test_data)
+## ------------- RMSE scores -----------------
+test_list = []
+for fit_sys in fit_sys_list:
+    test_list.append(fit_sys.apply_experiment(test_data))
 
-print(f'NRMS simulation baseline  {test_2dof.NRMS(test_data):.2%}')
-print(f'NRMS simulation mixed interconnect  {test_int1.NRMS(test_data):.2%}')
-print(f'NRMS simulation series interconnect  {test_int2.NRMS(test_data):.2%}')
-print(f'NRMS simulation parallel interconnect  {test_int3.NRMS(test_data):.2%}')
+print(f'Baseline RMS {test_2dof.RMS(test_data)}; NRMS {test_2dof.NRMS(test_data)*100}')
+for i, test in enumerate(test_list):
+    print(f'{fit_sys_name_list[i]} RMS {test.RMS(test_data)}; NRMS {test.NRMS(test_data)*100}')
 
+# ## ------------- FP model params -----------------
+# for i, fit_sys in enumerate(fit_sys_list):
+#     for m in fit_sys.hfn.connected_blocks:
+#         if isinstance(m, Parameterized_MSD_State_Block):
+#             print(f'{fit_sys_name_list[i]} params: {m.params}')
+#             break
+
+# ## ------------- Plot prediction error -----------------
+plt.rcParams['text.usetex'] = True
+plt.rcParams["font.family"] = "Times New Roman"
 scaling = 6/10; fig1 = plt.figure(figsize=[9.2*scaling, 3*scaling])
+# scaling = 2.5/10; fig1 = plt.figure(figsize=[30*scaling, 13*scaling], dpi=400)
 
-for i in range(ny):
-    plt.subplot(ny,1,i+1)
-    plt.grid()
-    plt.plot(test_data.y[:],label="Measured data")
-    plt.plot(test_data.y[:] - test_2dof.y[:],label='baseline error')
-    plt.plot(test_data.y[:] - test_int1.y[:],label='mixed error')
-    plt.plot(test_data.y[:] - test_int2.y[:],label='series error')
-    plt.plot(test_data.y[:] - test_int3.y[:],label='parallel error')
-    plt.ylabel("y [m]".format(i+1), labelpad=0.0)
-    plt.xlim([0,test_data.N_samples])
-    plt.tight_layout()
-plt.xlabel("k", labelpad=0.0)
+plt.plot(test_data.y[:],label="Measured data")
+plt.plot(test_data.y[:] - test_2dof.y[:])
+plt.plot(test_data.y[:] - test_list[0].y[:])
+
+plt.grid()
+plt.ylabel(r"$y$ [m]".format(i+1), labelpad=0.0)
+plt.xlim([0,test_data.N_samples])
+# plt.legend(loc="lower center", prop = { "size": 8.3}, ncols=2, columnspacing=0.5)
+plt.xlabel(r"$k$", labelpad=0.0)
+plt.tight_layout()
 
 fig_file_path = os.path.join(os.getcwd(), "figures\\cdc_paper\\")
-plt.savefig(os.path.join(fig_file_path, "fitted_models_pred_error.svg"), format="svg")
-plt.savefig(os.path.join(fig_file_path, "fitted_models_pred_error.png"), format="png")
-plt.savefig(os.path.join(fig_file_path, "fitted_models_pred_error.eps"), format="eps")
+plt.savefig(os.path.join(fig_file_path, "fitted_models_pred_error.svg"), transparent=True, format="svg")
+plt.savefig(os.path.join(fig_file_path, "fitted_models_pred_error.png"), transparent=True, format="png")
+plt.savefig(os.path.join(fig_file_path, "fitted_models_pred_error.eps"), transparent=True, format="eps")
+
+plt.show()
+
+## ------------- Plot val loss -----------------
+plt.rcParams['text.usetex'] = True
+plt.rcParams["font.family"] = "Times New Roman"
+scaling = 6/10; fig3 =  plt.figure(figsize=[8.9*scaling, 3.5*scaling])
+n_epochs_plt = 500
+
+for fit_sys, name in zip(fit_sys_list, fit_sys_name_list):
+    fit_sys.checkpoint_load_system('_last')
+    plt.semilogy(fit_sys.epoch_id,fit_sys.Loss_val, label=name) 
+
+plt.plot(np.arange(n_epochs_plt), np.ones(n_epochs_plt)*sigma_n, "r--", label="noise floor")
+plt.ylabel(r"RMSE")
+plt.xlabel(r"epochs")
+plt.xlim([0,n_epochs_plt])
+# plt.legend()
+plt.grid()
+plt.tight_layout()
+
+fig_file_path = os.path.join(os.getcwd(), "figures\\cdc_paper\\")
+plt.savefig(os.path.join(fig_file_path, "val_loss_plot_file_name.svg"), format="svg")
+plt.savefig(os.path.join(fig_file_path, "val_loss_plot_file_name.png"), format="png")
+plt.savefig(os.path.join(fig_file_path, "val_loss_plot_file_name.eps"), format="eps")
 
 plt.show()
