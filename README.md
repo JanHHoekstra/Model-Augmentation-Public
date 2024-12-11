@@ -1,6 +1,6 @@
 ## Contact
 
-Feel free to contact me directly for any question or issues related to deepSI.
+Feel free to contact me directly for any question or issues.
 
 Main developer: PhD candidate Jan Hoekstra at the TU/e. Control Systems. j.h.hoekstra@tue.nl
 
