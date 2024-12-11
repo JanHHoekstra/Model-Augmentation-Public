@@ -6,7 +6,7 @@ Main developer: PhD candidate Jan Hoekstra at the TU/e. Control Systems. j.h.hoe
 
 ## Citation
 
-When citing deepSI please use
+When citing please use
 
 > Jan H. Hoekstra, Chris Verhoek, Roland Toth, Maarten Schoukens. Learning-based model augmentation with LFRs; Submitted to ECC 2025, [Arxiv]
 
