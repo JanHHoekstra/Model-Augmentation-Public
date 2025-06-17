@@ -358,12 +358,12 @@ class modified_encoder_net(nn.Module):
         super(modified_encoder_net, self).__init__()
         from deepSI.utils import simple_res_net
         self.nu = tuple() if nu is None else ((nu,) if isinstance(nu,int) else nu)
-        self.ny = tuple()# if ny is None else ((ny,) if isinstance(ny,int) else ny)
+        self.ny = tuple()# if ny is None else ((ny,) if isinstance(ny,int) else ny) # <---------- This prevents the output target from ever being larger than 1 dimension, regardless of data size
         self.net = simple_res_net(n_in=nb*np.prod(self.nu,dtype=int) + na*np.prod(self.ny,dtype=int), \
             n_out=nx, n_nodes_per_layer=n_nodes_per_layer, n_hidden_layers=n_hidden_layers, activation=activation)
 
     def forward(self, upast, ypast):
-        # ypast = ypast[:,:,1]
+        # ypast = ypast[:,:,0] # <---------- To be disabled after training encoder: This prevents selects a single value from the state to be the output
 
         net_in = torch.cat([upast.view(upast.shape[0],-1),ypast.view(ypast.shape[0],-1)],axis=1)
         return self.net(net_in)
@@ -421,23 +421,26 @@ class SSE_Interconnect(SS_encoder_general):
             errors.append(nn.functional.mse_loss(y, yhat)) #calculate error after taking n-steps
         loss_MSE = torch.mean(torch.stack(errors))
         
+        has_theta_loss = False
+        loss_theta = 0
         for m in self.hfn.connected_blocks:
-            # if isinstance(m, Parameterized_Linear_State_Block):
-            #     loss_theta = nn.functional.mse_loss(m.Lambda_A * m.A, m.Lambda_A * m.A_init, reduction="sum") \
-            #     + nn.functional.mse_loss(m.Lambda_B * m.B, m.Lambda_B * m.B_init, reduction="sum")
-            #     # print(loss_theta)
-            #     return loss_MSE + loss_theta
-            if isinstance(m, Parameterized_MSD_State_Block):
-                loss_theta = nn.functional.mse_loss(m.Lambda * m.params, m.Lambda * m.init_params, reduction="sum")
-                # print(loss_theta)
-                return loss_MSE + loss_theta
-
-        
-        return loss_MSE
+            if isinstance(m, Parameterized_Linear_State_Block):
+                loss_theta = loss_theta + m.param_loss()
+                has_theta_loss = True
+            elif isinstance(m, Parameterized_Linear_Output_Block):
+                loss_theta = loss_theta + m.param_loss()
+                has_theta_loss = True
+            elif isinstance(m, Parameterized_MSD_State_Block):
+                loss_theta = loss_theta + nn.functional.mse_loss(m.Lambda * m.params, m.Lambda * m.init_params, reduction="sum")
+                has_theta_loss = True
+        if has_theta_loss:
+            # print(loss_theta)
+            return loss_MSE + loss_theta
+        else:
+            return loss_MSE
     
     def measure_act_multi(self,actions):
         actions = torch.tensor(np.array(actions), dtype=torch.float32) #(N,...)
         with torch.no_grad():
             y_predict, self.state = self.hfn(self.state, actions)
         return y_predict.numpy()
-

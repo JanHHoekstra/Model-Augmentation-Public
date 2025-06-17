@@ -40,6 +40,16 @@ class Static_ANN_Block(Block):
         return w.view(-1,self.nw,1)
         # return torch.matmul(self.D_yw, w.view(-1,self.nw,1))
 
+class Cubic_Block(Block):
+    def __init__(self, aL, *args, **kwargs) -> None:
+        super(Cubic_Block, self).__init__(*args, **kwargs)
+        self.aL = aL
+        
+    def forward(self, z: Tensor):
+        assert z.size(1) == self.nz
+
+        return torch.mul(torch.pow(z, 3),self.aL)
+
 class Linear_State_Block(Block):
     def __init__(self, A=torch.empty((0,0)), B=torch.empty((0,0)), *args, **kwargs) -> None:
         # Matrices defining the known linear ss model
@@ -52,35 +62,6 @@ class Linear_State_Block(Block):
             self.nx = self.B.size(0) if self.B.numel() else 0
 
         super().__init__(nw=self.nx, nz=self.nx+self.nu, *args, **kwargs)
-    
-    def forward(self, z: Tensor):
-        # print(self.name + " forward called for w" + str(self.block_ix))
-        # print(z.shape)
-        assert z.size(1) == self.nx + self.nu
-        x = z[:,:self.nx,:]
-        u = z[:,self.nx:,:]
-        w = torch.matmul(self.A, x) + torch.matmul(self.B, u)
-        return w
-    
-class Parameterized_Linear_State_Block(Block):
-    def __init__(self, A=torch.empty((0,0)), B=torch.empty((0,0)), *args, **kwargs) -> None:
-        # Matrices defining the known linear ss model
-        self.A_init = to_tensor(A)
-        self.B_init = to_tensor(B)
-        
-        self.nx = self.A_init.size(0) if self.A_init.numel() else 0
-        self.nu = self.B_init.size(1) if self.B_init.numel() else 0
-        if self.nx == 0:
-            self.nx = self.B_init.size(0) if self.B_init.numel() else 0
-
-        super().__init__(nw=self.nx, nz=self.nx+self.nu, *args, **kwargs)
-
-        self.A = nn.Parameter(to_tensor(A))
-        self.B = nn.Parameter(to_tensor(B))
-
-        self.RMSE_baseline = 0.0583
-        self.Lambda_A = (torch.ones((4,4)) / self.A_init)*self.RMSE_baseline
-        self.Lambda_B = (torch.ones((1,4)) / self.B_init)*self.RMSE_baseline
     
     def forward(self, z: Tensor):
         # print(self.name + " forward called for w" + str(self.block_ix))
@@ -106,13 +87,92 @@ class Linear_Output_Block(Block):
         super().__init__(nw=self.ny, nz=self.nx+self.nu, *args, **kwargs)
 
     def forward(self, z: Tensor):
-        # print(self.name + " forward called for w" + str(self.block_ix))
-
         assert z.size(1) == self.nx + self.nu
         x = z[:,:self.nx,:]
         u = z[:,self.nx:,:]
         w = torch.matmul(self.C, x) + torch.matmul(self.D, u)
         return w
+
+class Parameterized_Linear_State_Block(Block):
+    def __init__(self, A=torch.empty((0,0)), B=torch.empty((0,0)), RMSE_baseline=1.0, flag_loss_reg = True,*args, **kwargs) -> None:
+        # Matrices defining the known linear ss model
+        self.A_init = to_tensor(A)
+        self.B_init = to_tensor(B)
+        
+        self.nx = self.A_init.size(0) if self.A_init.numel() else 0
+        self.nu = self.B_init.size(1) if self.B_init.numel() else 0
+        if self.nx == 0:
+            self.nx = self.B_init.size(0) if self.B_init.numel() else 0
+
+        super().__init__(nw=self.nx, nz=self.nx+self.nu, *args, **kwargs)
+
+        self.A = nn.Parameter(to_tensor(A).clone())
+        self.B = nn.Parameter(to_tensor(B).clone())
+
+        # These lambda matrices are used to scale the loss function in interconnect.py
+        self.Lambda_A = (torch.ones(self.A.shape) / self.A_init)*RMSE_baseline
+        self.Lambda_A[torch.isinf(self.Lambda_A)] = 0.0
+        self.Lambda_B = (torch.ones(self.B.shape) / self.B_init)*RMSE_baseline
+        self.Lambda_B[torch.isinf(self.Lambda_B)] = 0.0
+
+        self.flag_loss_reg = flag_loss_reg
+    
+    def forward(self, z: Tensor):
+        # print(self.name + " forward called for w" + str(self.block_ix))
+        # print(z.shape)
+        assert z.size(1) == self.nx + self.nu
+        x = z[:,:self.nx,:]
+        u = z[:,self.nx:,:]
+        w = torch.matmul(self.A, x) + torch.matmul(self.B, u)
+        return w
+    
+    def param_loss(self):
+        if self.flag_loss_reg:
+            loss_theta = nn.functional.mse_loss(self.Lambda_A * self.A, self.Lambda_A * self.A_init, reduction="sum") \
+                    + nn.functional.mse_loss(self.Lambda_B * self.B, self.Lambda_B * self.B_init, reduction="sum")
+            return loss_theta
+        else:
+            return 0.0
+    
+class Parameterized_Linear_Output_Block(Block):
+    def __init__(self, C=torch.empty((0,0)), D=torch.empty((0,0)), RMSE_baseline=1.0, flag_loss_reg = True, *args, **kwargs) -> None:
+        # Matrices defining the known linear ss model
+        self.C_init = to_tensor(C)
+        self.D_init = to_tensor(D)
+        
+        self.ny = self.C_init.size(0) if self.C_init.numel() else 0
+        self.nx = self.C_init.size(1) if self.C_init.numel() else 0
+        self.nu = self.D_init.size(1) if self.D_init.numel() else 0
+        if self.ny == 0:
+            self.ny = self.D_init.size(0) if self.D_init.numel() else 0
+
+        super().__init__(nw=self.ny, nz=self.nx+self.nu, *args, **kwargs)
+
+        self.C = nn.Parameter(to_tensor(C).clone())
+        self.D = nn.Parameter(to_tensor(D).clone())
+
+        # These lambda matrices are used to scale the loss function in interconnect.py
+        self.Lambda_C = (torch.ones(self.C.shape) / self.C_init)*RMSE_baseline
+        self.Lambda_C[torch.isinf(self.Lambda_C)] = 0.0
+        self.Lambda_D = (torch.ones(self.D.shape) / self.D_init)*RMSE_baseline
+        self.Lambda_D[torch.isinf(self.Lambda_D)] = 0.0
+
+        self.flag_loss_reg = flag_loss_reg
+    
+    def forward(self, z: Tensor):
+        assert z.size(1) == self.nx + self.nu
+        x = z[:,:self.nx,:]
+        u = z[:,self.nx:,:]
+        w = torch.matmul(self.C, x) + torch.matmul(self.D, u)
+        return w
+    
+    def param_loss(self):
+        if self.flag_loss_reg:
+            loss_theta = nn.functional.mse_loss(self.Lambda_C * self.C, self.Lambda_C * self.C_init, reduction="sum") \
+                    + nn.functional.mse_loss(self.Lambda_D * self.D, self.Lambda_D * self.D_init, reduction="sum")
+            return loss_theta
+        else:
+            return 0.0
     
 class Discrete_Nonlinear_Function_Block(Block):
     def __init__(self, *args, **kwargs) -> None:
@@ -250,7 +310,7 @@ class Parameterized_Cascaded_Tanks_State_Block(Discrete_Nonlinear_Function_Block
         return w
 
 class Parameterized_MSD_State_Block(Discrete_Nonlinear_Function_Block):
-    def __init__(self, Ts=0.02, *args, **kwargs) -> None:
+    def __init__(self, Ts=0.02, FP_type="ideal", *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
         self.Ts = Ts
@@ -259,8 +319,12 @@ class Parameterized_MSD_State_Block(Discrete_Nonlinear_Function_Block):
         self.ny = 1
         self.nx = 4
 
-        self.init_params = to_tensor(np.array([0.5, 0.4, 100, 100, 0.5, 0.5])) # m1, m2, k1, k2, c1, c2
-        # self.init_params = to_tensor(np.array([0.5, 0.4, 95, 95, 0.45, 0.45])) # non ideal: m1, m2, k1, k2, c1, c2
+        if FP_type == "ideal":
+            self.init_params = to_tensor(np.array([0.5, 0.4, 100, 100, 0.5, 0.5])) # m1, m2, k1, k2, c1, c2
+        elif FP_type == "approximate":
+            self.init_params = to_tensor(np.array([0.5, 0.4, 95, 95, 0.45, 0.45])) # non ideal: m1, m2, k1, k2, c1, c2
+        else:
+            raise ValueError("FP_type must be either 'ideal' or 'approximate'")
 
         self.params = nn.Parameter(self.init_params.clone())
 
@@ -275,9 +339,9 @@ class Parameterized_MSD_State_Block(Discrete_Nonlinear_Function_Block):
         self.Tiu = to_tensor(np.array([[10.]]))
         self.Ty = to_tensor(np.array([[5.85660401]]))
 
-        # RMSE_baseline = 0.0583 # ideal
-        RMSE_baseline = 0.0795 # non ideal
-        self.epsilon = 1.0
+        # RMSE_baseline = 0.2 # ideal
+        RMSE_baseline = 0.2 # non ideal
+        self.epsilon = 1
         self.Lambda = np.sqrt(1/self.epsilon)*RMSE_baseline*torch.linalg.inv(torch.diag(self.init_params))
     
     def nonlinear_function(self, z: Tensor):

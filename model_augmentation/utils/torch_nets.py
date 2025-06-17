@@ -43,6 +43,23 @@ class identity_init_simple_res_net(nn.Module):
             return self.net_lin(x) + self.net_non_lin(x)
         else: #linear
             return self.net_lin(x)
+        
+class linear_mapping(nn.Module):
+    def __init__(self, n_in=6, n_out=5, n_nodes_per_layer=64, n_hidden_layers=2, activation=nn.Tanh):
+        #linear + non-linear part 
+        super(linear_mapping,self).__init__()
+        self.net_lin = nn.Linear(n_in,n_out)
+        self.n_in = n_in
+        self.n_out = n_out
+        
+        for m in self.net_lin.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.eye_(m.weight)
+                nn.init.constant_(m.bias, val=0)
+
+
+    def forward(self,x):
+            return self.net_lin(x)
 
 class zero_init_feed_forward_nn(nn.Module): #a simple MLP
     def __init__(self,n_in=6, n_out=5, n_nodes_per_layer=64, n_hidden_layers=2, activation=nn.Tanh):

@@ -105,3 +105,147 @@ class Msd_ndof(System_deriv):
         q = np.zeros(n)
         q[ix] = p
         return q
+    
+class Msd_ndof_lpf_output(System_deriv):
+    def __init__(self, n, m, k, c, a, dt=0.02, output_ix=None, input_ix=None):
+        super(Msd_ndof_lpf_output, self).__init__(nx=n*2, dt=dt)
+        
+        self.n = n
+        self.output_ix = self.determine_mask(output_ix)
+        self.input_ix = self.determine_mask(input_ix)
+        
+        self.m = self.cast_parameter_to_array(m, self.n)
+        self.k = self.cast_parameter_to_array(k, self.n)
+        self.c = self.cast_parameter_to_array(c, self.n)
+        self.a = self.cast_parameter_to_array(a, self.n)
+
+        self.x_lpf = None
+
+    def cast_parameter_to_array(self, p, n):
+        if isinstance(p, (float, int)):
+            array = np.repeat(p, n)
+        else:
+            array = p
+        return array
+    
+    def determine_mask(self, ix):
+        if ix == None:
+            return np.arange(self.n)
+        elif isinstance(ix, (np.ndarray, list)):
+            return ix
+        else:
+            raise ValueError("Output_ix not valid value.")
+
+    def deriv(self,x,u):
+        u = self.expand_with_ix(u, self.input_ix, self.n)
+
+        dx = np.zeros(self.nx)
+        dx[0] = x[1]
+        dx[1] = -(self.k[0] + self.k[1])/self.m[0]*x[0] + self.k[1]/self.m[0]*x[2] - (self.c[0] + self.c[1])/self.m[0]*x[1] + self.c[1]/self.m[0]*x[3] \
+            - self.a[0]/self.m[0]*np.power((x[0]),3) + self.a[1]/self.m[0]*np.power((x[2]-x[0]), 3) + 1/self.m[0]*u[0]
+
+        for i in range(1, self.n-1):
+            d_i = x[2*i] - x[2*(i-1)]
+            di_ = x[2*(i+1)] - x[2*i]
+
+            der_d_i = x[2*i  + 1] - x[2*(i-1) + 1]
+            der_di_ = x[2*(i+1) + 1] - x[2*i + 1]
+
+            F_i = self.k[i]*d_i + self.c[i]*der_d_i + self.a[i]*np.power(d_i, 3)
+            Fi_ = self.k[i+1]*di_ + self.c[i+1]*der_di_ + self.a[i+1]*np.power(di_, 3)
+
+            dx[2*i] = x[2*i + 1]
+            dx[2*i+1] = (-F_i + Fi_ + u[i])/self.m[i]
+
+        xn = x[-2]; dxn = x[-1]; xn_ = x[-4]; dxn_ = x[-3]
+        dx[-2] = dxn
+        dx[-1] = -self.k[self.n-1]/self.m[self.n-1]*(xn-xn_) - self.c[self.n-1]/self.m[self.n-1]*(dxn-dxn_) \
+            - self.a[self.n-1]/self.m[self.n-1]*np.power((xn-xn_), 3) + 1/self.m[-1]*u[-1]
+        
+        return dx
+
+    def h(self,x,u):
+        y = x[0::2]
+        y = y[self.output_ix]
+
+        if self.x_lpf is None:
+            self.x_lpf = y
+            y_lpf = y
+        else:
+            y_lpf = 6.25*self.x_lpf
+            self.x_lpf = 0.3679*self.x_lpf + 0.1011*y 
+
+        return y_lpf
+    
+    def expand_with_ix(self, p, ix, n):
+        q = np.zeros(n)
+        q[ix] = p
+        return q
+
+class Msd_ndof_input_saturation(System_deriv):
+    def __init__(self, n, m, k, c, a, dt=0.02, output_ix=None, input_ix=None):
+        super(Msd_ndof_input_saturation, self).__init__(nx=n*2, dt=dt)
+        
+        self.n = n
+        self.output_ix = self.determine_mask(output_ix)
+        self.input_ix = self.determine_mask(input_ix)
+        
+        self.m = self.cast_parameter_to_array(m, self.n)
+        self.k = self.cast_parameter_to_array(k, self.n)
+        self.c = self.cast_parameter_to_array(c, self.n)
+        self.a = self.cast_parameter_to_array(a, self.n)
+
+    def cast_parameter_to_array(self, p, n):
+        if isinstance(p, (float, int)):
+            array = np.repeat(p, n)
+        else:
+            array = p
+        return array
+    
+    def determine_mask(self, ix):
+        if ix == None:
+            return np.arange(self.n)
+        elif isinstance(ix, (np.ndarray, list)):
+            return ix
+        else:
+            raise ValueError("Output_ix not valid value.")
+
+    def deriv(self,x,u):
+        
+        u = self.expand_with_ix(u, self.input_ix, self.n)
+        u = 30*np.tanh(u/30)
+
+        dx = np.zeros(self.nx)
+        dx[0] = x[1]
+        dx[1] = -(self.k[0] + self.k[1])/self.m[0]*x[0] + self.k[1]/self.m[0]*x[2] - (self.c[0] + self.c[1])/self.m[0]*x[1] + self.c[1]/self.m[0]*x[3] \
+            - self.a[0]/self.m[0]*np.power((x[0]),3) + self.a[1]/self.m[0]*np.power((x[2]-x[0]), 3) + 1/self.m[0]*u[0]
+
+        for i in range(1, self.n-1):
+            d_i = x[2*i] - x[2*(i-1)]
+            di_ = x[2*(i+1)] - x[2*i]
+
+            der_d_i = x[2*i  + 1] - x[2*(i-1) + 1]
+            der_di_ = x[2*(i+1) + 1] - x[2*i + 1]
+
+            F_i = self.k[i]*d_i + self.c[i]*der_d_i + self.a[i]*np.power(d_i, 3)
+            Fi_ = self.k[i+1]*di_ + self.c[i+1]*der_di_ + self.a[i+1]*np.power(di_, 3)
+
+            dx[2*i] = x[2*i + 1]
+            dx[2*i+1] = (-F_i + Fi_ + u[i])/self.m[i]
+
+        xn = x[-2]; dxn = x[-1]; xn_ = x[-4]; dxn_ = x[-3]
+        dx[-2] = dxn
+        dx[-1] = -self.k[self.n-1]/self.m[self.n-1]*(xn-xn_) - self.c[self.n-1]/self.m[self.n-1]*(dxn-dxn_) \
+            - self.a[self.n-1]/self.m[self.n-1]*np.power((xn-xn_), 3) + 1/self.m[-1]*u[-1]
+        
+        return dx
+
+    def h(self,x,u):
+        y = x[0::2]
+        y = y[self.output_ix]
+        return y
+    
+    def expand_with_ix(self, p, ix, n):
+        q = np.zeros(n)
+        q[ix] = p
+        return q
