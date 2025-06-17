@@ -1,14 +1,14 @@
 ## Contact
 
-Feel free to contact me directly for any question or issues related to deepSI.
+Feel free to contact me directly for any question or issues.
 
 Main developer: PhD candidate Jan Hoekstra at the TU/e. Control Systems. j.h.hoekstra@tue.nl
 
 ## Citation
 
-When citing deepSI please use
+When citing please use
 
-> Jan H. Hoekstra, Chris Verhoek, Roland Toth, Maarten Schoukens. Learning-based model augmentation with LFRs; Submitted to CDC 2024, [Arxiv]
+> Jan H. Hoekstra, Chris Verhoek, Roland Toth, Maarten Schoukens. Learning-based model augmentation with LFRs; Submitted to ECC 2025, [Arxiv]
 
 ## Funding
 
