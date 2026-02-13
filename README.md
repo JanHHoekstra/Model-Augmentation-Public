@@ -8,7 +8,7 @@ Main developer: PhD candidate Jan Hoekstra at the TU/e. Control Systems. j.h.hoe
 
 When citing please use
 
-> Jan H. Hoekstra, Chris Verhoek, Roland Toth, Maarten Schoukens. Learning-based model augmentation with LFRs; Submitted to ECC 2025, [Arxiv]
+> Jan H. Hoekstra, Chris Verhoek, Roland Toth, Maarten Schoukens. Learning-based model augmentation with LFRs; Submitted to European Journal of Control 2025, [Published version](https://www.sciencedirect.com/science/article/pii/S0947358025001335)
 
 ## Funding
 
