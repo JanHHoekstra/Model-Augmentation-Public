@@ -14,10 +14,6 @@ for encoder initialisation
 
 > Jan H. Hoekstra, B. Györök, Roland Toth, Maarten Schoukens. Encoder initialisation methods in the model augmentation setting; Submitted to IFAC WC 2026, [arXiv](https://arxiv.org/abs/2602.13108)
 
-for the cascaded tanks application
-
-> Jan H. Hoekstra, Chris Verhoek, Roland Toth, Maarten Schoukens. Learning-based model augmentation for cascaded tanks; Nonlinear Benchmark 2024, [Abstract](https://pure.tue.nl/ws/portalfiles/portal/323962225/NonlinearBenchmark2024.pdf)
-
 ## Funding
 
 Funded by the European Union (ERC, COMPLETE, 101075836). Views and opinions expressed are however those of the author(s) only and do not necessarily reflect those of the European Union or the European Research Council Executive Agency. Neither the European Union nor the granting authority can be held responsible for them.
