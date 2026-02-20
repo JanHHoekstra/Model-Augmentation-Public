@@ -10,8 +10,6 @@ When citing please use for model augmentation
 
 > Jan H. Hoekstra, B. Györök, Roland Toth, Maarten Schoukens. Learning-based augmentation of first-principle models: A linear fractional representation-based approach; Submitted to Automatica, [arXiv](https://arxiv.org/abs/2602.17297)
 
-https://arxiv.org/abs/2602.17297
-
 and for encoder initialisation
 
 > Jan H. Hoekstra, B. Györök, Roland Toth, Maarten Schoukens. Encoder initialisation methods in the model augmentation setting; Submitted to IFAC WC 2026, [arXiv](https://arxiv.org/abs/2602.13108)
