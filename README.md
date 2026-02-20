@@ -8,11 +8,17 @@ Main developer: PhD candidate Jan Hoekstra at the TU/e. Control Systems. j.h.hoe
 
 When citing please use for model augmentation
 
-> Jan H. Hoekstra, Chris Verhoek, Roland Toth, Maarten Schoukens. Learning-based model augmentation with LFRs; European Journal of Control 2025, [Published version](https://www.sciencedirect.com/science/article/pii/S0947358025001335)
+> Jan H. Hoekstra, B. Györök, Roland Toth, Maarten Schoukens. Learning-based augmentation of first-principle models: A linear fractional representation-based approach; Submitted to Automatica, [arXiv](https://arxiv.org/abs/2602.17297)
 
-for encoder initialisation
+https://arxiv.org/abs/2602.17297
+
+and for encoder initialisation
 
 > Jan H. Hoekstra, B. Györök, Roland Toth, Maarten Schoukens. Encoder initialisation methods in the model augmentation setting; Submitted to IFAC WC 2026, [arXiv](https://arxiv.org/abs/2602.13108)
+
+Previous work on model augmentation
+
+> Jan H. Hoekstra, Chris Verhoek, Roland Toth, Maarten Schoukens. Learning-based model augmentation with LFRs; European Journal of Control 2025, [Published version](https://www.sciencedirect.com/science/article/pii/S0947358025001335)
 
 ## Funding
 
